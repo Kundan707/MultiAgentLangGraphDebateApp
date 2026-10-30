@@ -19,3 +19,9 @@ Preserve the Site identity in `.openai/hosting.json`. Set `ANTHROPIC_API_KEY` as
 Sessions and evidence notes are stored in this browser's local storage, with a maximum of 20 sessions. Existing prepared practice sessions remain clearly labeled in history. Live runs do not fall back to prepared answers. Interrupted runs preserve completed rounds. Research source links are restricted to URLs returned by the search tool; those links and AI assessments still need human review.
 
 Research uses Claude web search first, followed by a separate JSON synthesis call because web citations and structured output cannot be requested together. Authentication, billing, model access, and web search errors are surfaced without exposing provider credentials.
+
+## Agent voice playback
+
+The browser Speech Synthesis API reads the existing debate text aloud. Each role has its own selectable voice, with role-specific pitch defaults; available voices depend on the visitor's device and browser. No additional voice-service credential is required. Voice selections, playback speed, and the optional automatic-reading preference are stored locally.
+
+Individual contributions have Listen controls. Play debate reads the available transcript in canonical order. Automatic reading queues new rounds in that same order even when model calls finish out of order. Pause, resume, stop, changing saved sessions, and starting a new debate manage the speech queue. Long passages are split into short utterances and raw source URLs are omitted from narration. Text and linked sources remain visible. Browsers may require a playback click before allowing audio; blocked or unsupported playback shows an explanatory message.
