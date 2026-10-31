@@ -1,6 +1,6 @@
 # The Forum — live debate prep
 
-A private Sites Worker application with four model roles. Affirmative and Negative each search for evidence and build a case, then rebut the opposing case. The Researcher searches the web to audit specific claims. The Judge evaluates the full transcript and audit against a 100-point rubric. All calls use the server-side Anthropic Messages API; the browser never receives the API key.
+A private Sites Worker application with six model roles. Affirmative and Negative each search for evidence and build a case. The Questioner and Rebuttal agent challenge both sides; each side answers before rebutting the opposing case. The Researcher searches the web to audit specific claims. The Judge evaluates the full transcript and audit against a 100-point rubric. All calls use the server-side Anthropic Messages API; the browser never receives the API key.
 
 ## Local development
 
@@ -25,3 +25,9 @@ Research uses Claude web search first, followed by a separate JSON synthesis cal
 The browser Speech Synthesis API reads the existing debate text aloud. Each role has its own selectable voice, with role-specific pitch defaults; available voices depend on the visitor's device and browser. No additional voice-service credential is required. Voice selections, playback speed, and the optional automatic-reading preference are stored locally.
 
 Individual contributions have Listen controls. Play debate reads the available transcript in canonical order. Automatic reading queues new rounds in that same order even when model calls finish out of order. Pause, resume, stop, changing saved sessions, and starting a new debate manage the speech queue. Long passages are split into short utterances and raw source URLs are omitted from narration. Text and linked sources remain visible. Browsers may require a playback click before allowing audio; blocked or unsupported playback shows an explanatory message.
+
+## Questions, challenges, and judging
+
+New debates use six roles. After opening cases, the Questioner asks two questions per side (Q1/Q2); the Rebuttal agent identifies two weaknesses per side and poses follow-ups (R1/R2). Each side must answer its four assigned questions before its rebuttal. The source audit includes empirical claims made in those answers. The Judge receives the full question-and-answer transcript.
+
+The new 100-point rubric assigns 25 points each to reasoning and feasibility, evidence quality, rebuttal effectiveness, and question handling. Question handling rewards direct, relevant, supported answers and honest acknowledgment of uncertainty; evasive replies are penalized. The verdict includes side-specific feedback referencing the Q/R IDs. Older sessions retain their original three-criterion scorecards. Questions, answers, challenges and judging feedback are included in voice playback and exported notes.
