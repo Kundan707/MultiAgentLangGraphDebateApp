@@ -1,40 +1,109 @@
-# The Forum — live debate prep
+# The Forum — Python debate agents
 
-A private Sites Worker application with six model roles. Affirmative and Negative each search for evidence and build a case. The Questioner and Rebuttal agent challenge both sides; each side answers before rebutting the opposing case. The Researcher searches the web to audit specific claims. The Judge evaluates the full transcript and audit against a 100-point rubric. All calls use the server-side Anthropic Messages API; the browser never receives the API key.
+A local debate-preparation app with six Claude-powered debate roles, a tool-calling coordinator, durable checkpoints, local vector memory, streamed text, a scored verdict, and on-device Kokoro neural voices. All agent logic and the local API server are written in Python. The browser interface and browser-side speech engine remain HTML, CSS, and JavaScript.
 
-## Local development
+## Run locally
 
-Use Node 22 or newer. The ignored `.env.local` holds `ANTHROPIC_API_KEY`; optional `ANTHROPIC_MODEL` defaults to `claude-sonnet-5`. See `.env.example` for names only.
+Requires Python 3.11+ and Node/npm for the Kokoro browser library. From this project directory:
 
-- `npm run dev` starts http://localhost:4173.
-- `npm test` runs orchestration, source filtering, scoring, request validation, and provider error checks with mocks.
-- `npm run build` embeds public assets into the Worker deployment.
-- `node scripts/validate-artifact.mjs` validates the built Worker.
-- `node --env-file=.env.local scripts/smoke.mjs` runs one complete paid live debate when the API project has credits and model access.
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.lock.txt
+npm ci
+.venv/bin/python -m forum
+```
 
-## Hosting
+Open **http://localhost:8000**. The server binds to `127.0.0.1` by default. To change the port, use `--port 8001`.
 
-Preserve the Site identity in `.openai/hosting.json`. Set `ANTHROPIC_API_KEY` as a secret using Sites environment settings, then deploy the matching pushed source archive. Keep the Site owner-private. The API depends on the Sites authentication boundary and rejects cross-origin browser calls. Concurrent sessions are limited per visitor within each Worker isolate; this is not a global billing limit. Configure spend limits in the Anthropic console before broadening access.
+The existing ignored `.env.local` is reused. On a new computer, configure `ANTHROPIC_API_KEY` there; optional `ANTHROPIC_MODEL` defaults to `claude-sonnet-5`. `.env.example` contains names only. No API credentials are served to the browser. `requirements.lock.txt` pins the tested Python environment, including development tools; `requirements.txt` lists runtime dependencies only.
 
-Sessions and evidence notes are stored in this browser's local storage, with a maximum of 20 sessions. Existing prepared practice sessions remain clearly labeled in history. Live runs do not fall back to prepared answers. Interrupted runs preserve completed rounds. Research source links are restricted to URLs returned by the search tool; those links and AI assessments still need human review.
+## Where the agents live
 
-Research uses Claude web search first, followed by a separate JSON synthesis call because web citations and structured output cannot be requested together. Authentication, billing, model access, and web search errors are surfaced without exposing provider credentials.
+- `forum/coordinator.py`: Claude chooses registered tools, checks prerequisites, tracks checkpoints, retries recoverable failures, and hands off to a human. This is the default execution path.
+- `forum/memory.py`: embedded Qdrant semantic search, FastEmbed embeddings, saved debate records, and SQLite session journals.
+- `forum/agents.py`: readable Python classes for Affirmative, Negative, Questioner, Rebuttal, Researcher, and Judge.
+- `forum/debate.py`: agent construction and the standalone fixed-pipeline runner retained for tests and comparison. Failed or cancelled parallel work cancels its siblings.
+- `forum/claude.py`: asynchronous Anthropic API calls, web-search continuation, source extraction, structured output, and safe provider errors.
+- `forum/models.py`: Pydantic response contracts and validation, including unique question IDs, score bounds, and agreement between totals and winner.
+- `forum/app.py`: FastAPI routes, newline-delimited JSON streaming, heartbeats, timeout/cancellation, bounded concurrency, and explicit static-file allowlisting.
+- `forum/config.py`: local configuration and secret handling.
+- `forum/__main__.py`: local server entry point.
 
-## Agent voice playback
+## Debate sequence and judging
 
-Kokoro-82M is the default speech engine, running quantized ONNX inference in a browser Web Worker with kokoro-js 1.2.1. Each role has its own selectable neural preset voice. The pinned Kokoro browser library is packaged with the Site; model/tokenizer data, voice weights, and the ONNX WASM runtime download from Hugging Face and jsDelivr as needed. Model artifacts use the runtime's browser cache. Debate text is processed on-device for speech, and no additional voice-service key is needed. System Speech Synthesis voices remain an explicit fallback in Voices settings. Voice selections, playback speed, and the optional automatic-reading preference are stored locally.
+Affirmative and Negative independently search for evidence and build opening cases. The Questioner asks two questions per side (Q1/Q2). In parallel, the Rebuttal agent identifies two weaknesses per side and asks follow-ups (R1/R2). Each side answers all four assigned questions and rebuts the opposing case. The Researcher independently searches to audit up to six consequential empirical claims, including those in the answers. Source links are restricted to URLs actually returned by web search.
 
-Individual contributions have Listen controls. Play debate reads the available transcript in canonical order. Automatic reading queues new rounds in that same order even when model calls finish out of order. Pause, resume, stop, changing saved sessions, and starting a new debate manage the speech queue. Long passages are split into short utterances and raw source URLs are omitted from narration. Text and linked sources remain visible. Browsers may require a playback click before allowing audio; blocked or unsupported playback shows an explanatory message.
+The Judge sees the full transcript and research audit. The 100-point rubric gives 25 points each to reasoning and feasibility, evidence quality, rebuttal effectiveness, and question handling. Direct, supported answers and honest admissions of uncertainty matter; evasive answers lose credit. Feedback references specific Q/R IDs. Older saved sessions retain their original scorecards.
 
-## Questions, challenges, and judging
+## Voice and frontend
 
-New debates use six roles. After opening cases, the Questioner asks two questions per side (Q1/Q2); the Rebuttal agent identifies two weaknesses per side and poses follow-ups (R1/R2). Each side must answer its four assigned questions before its rebuttal. The source audit includes empirical claims made in those answers. The Judge receives the full question-and-answer transcript.
+`public/` contains the existing interface, session history, exported notes, and playback controls. Kokoro-82M runs locally in a browser Web Worker using pinned `kokoro-js` 1.2.1, q8 ONNX, and CPU/WASM inference. The Python server serves its browser library from `node_modules`; no Node server or JavaScript agent backend is needed for the Python version.
 
-The new 100-point rubric assigns 25 points each to reasoning and feasibility, evidence quality, rebuttal effectiveness, and question handling. Question handling rewards direct, relevant, supported answers and honest acknowledgment of uncertainty; evasive replies are penalized. The verdict includes side-specific feedback referencing the Q/R IDs. Older sessions retain their original three-criterion scorecards. Questions, answers, challenges and judging feedback are included in voice playback and exported notes.
+Open Voices and choose Download Kokoro, or click Listen to initialize on first use. Model/tokenizer artifacts, voice weights, and the WASM runtime download from Hugging Face and jsDelivr as needed and use the runtime's browser cache. Speech text is processed on-device, with no additional speech API key. Available neural presets include distinct voices for all six roles. System voices remain a manual fallback. Model and library licensing are Apache-2.0; library license is available at `/kokoro-LICENSE.txt`.
+
+Sessions and evidence notes are stored in browser local storage (up to 20 sessions). Text remains visible during playback. The audio queue supports automatic reading, role selection, speed, pause/resume, stop, and cancellation. A bounded audio cache and prefetching reduce repeat generation and gaps.
+
+## Verification
+
+```sh
+.venv/bin/python -m pytest -q
+npm test
+```
+
+One live, paid Claude debate can be tested with:
+
+```sh
+.venv/bin/python -m forum.smoke
+```
+
+`/healthz` checks the local server, `/api/config` reports readiness without exposing a key, and `/docs` provides FastAPI's endpoint reference. A successful config check means a key is configured; it does not verify provider credits or access.
+
+## Local and hosted versions
+
+`npm run dev` starts the local Python server. The previously published Site is a separate deployment of the earlier JavaScript version. Deploying this version requires a Python-capable host.
+
+Before exposing the Python server publicly, configure authentication and an explicit trusted host/origin policy, along with hosting-level rate/spend controls. The local default intentionally accepts only localhost hosts and same-origin browser requests; it does not treat arbitrary request headers as authenticated identities.
 
 
-## Kokoro download and playback
+## Coordinator and durable state
 
-Open Voices and click Download Kokoro, or click a role preview/Listen to initialize on first use. Download progress and readiness are visible in the settings. CPU/WASM with the q8 model is used for broad browser compatibility; initial downloads and inference speed depend on network and device. Six default voices are Heart, Michael, Emma, Fenrir, Bella, and George. Subsequent passages are prepared in the worker while current audio plays. The audio cache is bounded, canceled generations cannot start stale playback, and blob URLs are released after playback. Model downloads can be retried; system voices can be selected manually if neural loading fails.
+The default API now runs a real Claude tool-use loop. Each decision selects a registered tool: build either opening, ask questions, challenge cases, answer as either side, review sources, judge, save, or hand off to a human. Tools cannot execute arbitrary shell commands or URLs. Dependency checks prevent judging before the evidence review or saving before a valid verdict. Claude receives the completed steps, latest tool results, research summary, available actions, and recovery budget. Tool calls and tool-result messages are retained across decisions.
 
-`npm install` installs the pinned library. `npm run build` embeds its browser bundle and Apache license, not its Node inference stack. Node-only image-processing dependencies reported by npm are not included in the deployed browser/Worker artifact. The model weights are Apache-2.0 licensed; see the Kokoro model card and `/kokoro-LICENSE.txt` for library licensing.
+Each successful step is checkpointed in `data/sessions.sqlite3`. Resuming reconstructs the transcript from those checkpoints and does not rerun completed agent steps. Interrupted sessions appear under Past sessions → Resume unfinished debates. A handoff shows the issue and a question, with an optional clarification field and Resume button. Fixing an API key in `.env.local` requires restarting the local server before resuming. Credit top-ups can be retried using the same configured key.
+
+Transient network, rate-limit, and invalid-output errors have a maximum of three attempts per tool. Configuration, billing, refusal, and repeated failures pause for a human. Each invocation has a 30-decision and 15-minute budget. Stopping the browser request cancels pending work while retaining completed steps. Resume gives the user a fresh bounded attempt budget. A save failure retains the judged debate so only storage needs to be retried.
+
+## Vector memory and previous-debate choice
+
+Completed debates are stored in local **Qdrant**, under `data/vectors`, with full transcripts, source audits, verdicts, model names, and original dates. **FastEmbed BAAI/bge-small-en-v1.5** creates 384-dimensional embeddings locally; its roughly 64 MB model is downloaded once into `data/models`. No embedding API key is needed. The whole `data/` directory is ignored by Git; back it up to retain debate memory and checkpoints.
+
+Before any debate agents run, the server searches semantic memory. Up to three results above a cosine-similarity threshold of 0.82 are offered. The student explicitly chooses an earlier debate or a new run. Similar resolutions, including opposing policy wordings, are never automatically treated as equivalent. Opening a saved debate makes no Claude calls. Choosing new runs fresh research and stores a separate version. Saved evidence keeps its original date. Incomplete debates stay in checkpoints and are not indexed as completed debates.
+
+The browser uses `/api/debates/check` for the choice dialog; `/api/debate` independently enforces the check. `/api/debates/{id}` retrieves a completed debate, and `/api/sessions` lists resumable checkpoints. A failed lookup is surfaced to the user, who may repair it or explicitly choose a fresh run. Embedded Qdrant is a single-process local database: use one app server process for this setup.
+
+The end-to-end coordinator and vector retrieval check is:
+
+```sh
+.venv/bin/python -m forum.coordinator_smoke
+```
+
+This performs a new paid debate and saves the real result to local memory. Unit tests use isolated databases and mock model calls, including recovery, rejected tools, handoff/resume, cancellation, persistence across reopen, duplicate prevention, and the no-model-call memory-choice path.
+
+### LangChain agents and tools
+
+The Python backend uses `ChatAnthropic` through LangChain in `forum/claude.py`.
+Agent prompts in `forum/agents.py` run through `ChatPromptTemplate` and
+`with_structured_output`, followed by local Pydantic validation. Research calls
+use Claude's built-in web search through `bind_tools`.
+
+`forum/tools.py` defines typed async `@tool` functions for case building,
+questions, challenges, answers, source review, judging, saving, human handoff,
+and semantic memory search. The coordinator binds these tools to Claude and
+executes the chosen tool with `ainvoke`. Session state stays in application
+closures; tool arguments cannot overwrite it. Dependency checks still prevent
+judging an incomplete debate.
+
+`forum/coordinator.py` retains the durable checkpoint and recovery loop.
+Existing saved tool histories are converted to LangChain `AIMessage` and
+`ToolMessage` objects, preserving resumable sessions and Qdrant memory.
+LangSmith tracing is disabled; no LangSmith account or key is required.

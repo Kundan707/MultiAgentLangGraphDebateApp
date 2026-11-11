@@ -59,7 +59,7 @@
     $('#output').addEventListener('click',e=>{const button=e.target.closest('[data-speak]');if(!button)return;const key=button.dataset.speak;if(player.state().key===key){stop();return}let item=entries(getCurrent()?.data).find(item=>item.key===key);if(key.startsWith('claim:')){const claim=getCurrent()?.data.review?.claims[Number(key.split(':')[1])];if(claim)item={key,role:'Researcher',text:'Researcher. '+claim.side+'. '+claim.claim+'. '+claim.status+'. '+claim.explanation}}if(item){live=false;player.play([item])}});
     window.addEventListener('pagehide',()=>{player.stop();neural.dispose()});
     sync(player.state());
-    return {supported:true,startSession(){player.stop();included=new Set();cursor=0;live=Boolean(prefs.auto);if(live)player.play([{key:'intro',role:'Judge',text:'Your debate team is getting ready.'}])},onEvent(event){if(['case','questions','challenges','answers','rebuttal','research','verdict'].includes(event.type))flush()},refresh(){const any=entries(getCurrent()?.data).length>0;$('#voicePlay').disabled=!any;sync(player.state())},stop};
+    return {supported:true,skipExisting(){for(const item of entries(getCurrent()?.data))included.add(item.key);flush()},startSession(){player.stop();included=new Set();cursor=0;live=Boolean(prefs.auto);if(live)player.play([{key:'intro',role:'Judge',text:'Your debate team is getting ready.'}])},onEvent(event){if(['case','questions','challenges','answers','rebuttal','research','verdict'].includes(event.type))flush()},refresh(){const any=entries(getCurrent()?.data).length>0;$('#voicePlay').disabled=!any;sync(player.state())},stop};
   }
   globalThis.ForumSpeech={createPlayer,entries,chunks,init};
 })();

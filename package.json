@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node scripts/build.mjs",
     "test": "node --test tests/*.test.mjs",
-    "dev": "node --env-file-if-exists=.env.local scripts/dev.mjs"
+    "dev": ".venv/bin/python -m forum",
+    "test:python": ".venv/bin/python -m pytest -q"
   },
   "dependencies": {
     "kokoro-js": "1.2.1"
